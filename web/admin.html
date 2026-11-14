@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Quản lý câu hỏi · FreeTalk</title>
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./admin.css">
+  <script defer src="./backend-config.js"></script>
+  <script defer src="./admin.js"></script>
+</head>
+<body>
+  <header><div class="header-inner"><a class="brand" href="./"><span class="mark" lang="ja">話</span> FreeTalk</a><button id="logout" class="quiet" hidden>Đăng xuất</button></div></header>
+  <main>
+    <h1>Quản lý câu hỏi</h1>
+    <p id="message" role="status"></p>
+    <form id="login" class="panel">
+      <label for="access">Mã truy cập quản trị</label>
+      <input id="access" type="password" autocomplete="current-password" required>
+      <button class="primary">Mở kho câu</button>
+    </form>
+    <div id="workspace" hidden>
+      <form id="generation" class="panel">
+        <h2>Sinh câu bằng Gemini</h2>
+        <label for="topic">Chủ đề (tùy chọn)</label>
+        <input id="topic" maxlength="100" placeholder="Ví dụ: giao tiếp nơi làm việc">
+        <button id="generate" class="primary">Sinh 8 câu nháp</button>
+        <p id="usage" class="muted"></p>
+      </form>
+      <div class="list-header"><h2>Kho câu</h2><button id="add">Thêm câu</button></div>
+      <label for="filter">Trạng thái</label>
+      <select id="filter"><option value="">Tất cả</option><option value="draft">Bản nháp</option><option value="published">Đã xuất bản</option><option value="hidden">Đã ẩn</option></select>
+      <div id="rows"></div>
+    </div>
+  </main>
+  <dialog id="editor">
+    <form id="question">
+      <div class="settings-heading"><h2>Câu hỏi</h2><button class="quiet" id="close" type="button">Đóng</button></div>
+      <label for="mode">Dạng bài</label><select id="mode"></select>
+      <label for="ja">Tiếng Nhật</label><textarea id="ja" lang="ja" required minlength="5" maxlength="100" rows="3"></textarea>
+      <label for="vi">Bản dịch tiếng Việt</label><textarea id="vi" required minlength="5" maxlength="180" rows="3"></textarea>
+      <label for="status">Trạng thái</label><select id="status"><option value="draft">Bản nháp</option><option value="published">Xuất bản</option><option value="hidden">Ẩn</option></select>
+      <p id="editor-message" role="status"></p>
+      <button class="primary">Lưu câu</button>
+    </form>
+  </dialog>
+</body>
+</html>

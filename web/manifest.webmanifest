@@ -1,0 +1,16 @@
+{
+  "id": "./",
+  "name": "FreeTalk 日本語",
+  "short_name": "FreeTalk",
+  "description": "Câu hỏi ngắn để luyện phản xạ nói tiếng Nhật.",
+  "lang": "vi",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f6f1",
+  "theme_color": "#f6f6f1",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

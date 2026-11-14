@@ -1,0 +1,7 @@
+{
+  "name": "freetalk-japanese",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/serve.mjs"
+  }
+}

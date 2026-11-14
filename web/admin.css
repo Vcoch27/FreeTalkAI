@@ -1,0 +1,12 @@
+#message { margin-block: 12px; }
+.panel { border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); padding: 18px; margin-bottom: 24px; }
+.panel h2, .list-header h2 { font-size: 1.15rem; }
+label { display: block; margin-block: 10px 4px; }
+input, textarea { width: 100%; padding: 10px 12px; font: inherit; color: var(--text); background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+.panel button { margin-top: 12px; }
+button:disabled { opacity: .65; cursor: wait; }
+.list-header { display: flex; justify-content: space-between; align-items: center; }
+.row { display: grid; grid-template-columns: 1fr auto; align-items: start; gap: 14px; padding: 15px 0; border-bottom: 1px solid var(--rule); }
+.row p + p { margin-top: 3px; }
+.row .muted { margin-block: 4px 0; }
+#editor-message { margin-block: 10px; color: var(--muted); }

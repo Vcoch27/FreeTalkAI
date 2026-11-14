@@ -1,0 +1,13 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:gravity="center_vertical" android:orientation="vertical" android:padding="12dp"
+    android:background="@drawable/widget_surface">
+    <TextView android:id="@+id/widget_ja" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:textColor="#172922" android:textSize="16sp" android:textStyle="bold" android:maxLines="3"
+        android:ellipsize="end" android:text="今日の質問" />
+    <TextView android:id="@+id/widget_vi" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" android:textColor="#435B50" android:textSize="11sp"
+        android:maxLines="2" android:ellipsize="end" android:text="Câu luyện nói" />
+    <TextView android:id="@+id/widget_time" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="3dp" android:textColor="#435B50" android:textSize="10sp" />
+</LinearLayout>

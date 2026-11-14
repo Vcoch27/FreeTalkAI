@@ -1,0 +1,23 @@
+plugins { id 'com.android.application' version '8.9.1' }
+android {
+    namespace 'app.freetalk.japanese'
+    compileSdk 35
+    buildFeatures.buildConfig = true
+
+    defaultConfig {
+        buildConfigField "String", "CATALOGUE_URL", '"https://s2fywll0h7.execute-api.ap-southeast-2.amazonaws.com/questions"'
+        applicationId 'app.freetalk.japanese'
+        minSdk 26
+        targetSdk 34
+        versionCode 3
+        versionName '0.3.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets.main.assets.srcDirs = ['../web']
+    androidResources.ignoreAssetsPattern = '!admin.html:!admin.css:!admin.js'
+}

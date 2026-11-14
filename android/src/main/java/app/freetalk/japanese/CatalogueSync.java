@@ -1,0 +1,58 @@
+package app.freetalk.japanese;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import javax.net.ssl.HttpsURLConnection;
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+final class CatalogueSync {
+    private static final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final long REFRESH_INTERVAL = 15 * 60 * 1000L;
+
+    static void refresh(Context context) {
+        Context app = context.getApplicationContext();
+        executor.execute(() -> {
+            SharedPreferences state = new PromptStore(app).state;
+            long now = System.currentTimeMillis();
+            long last = state.getLong("catalogue_sync", 0);
+            if (now >= last && now - last < REFRESH_INTERVAL) return;
+            HttpsURLConnection connection = null;
+            try {
+                connection = (HttpsURLConnection) new URL(BuildConfig.CATALOGUE_URL).openConnection();
+                connection.setConnectTimeout(4000);
+                connection.setReadTimeout(4000);
+                connection.setInstanceFollowRedirects(false);
+                if (connection.getResponseCode() != 200) return;
+                try (InputStream input = connection.getInputStream()) {
+                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                    byte[] chunk = new byte[4096];
+                    int count;
+                    while ((count = input.read(chunk)) != -1) {
+                        if (buffer.size() + count > 256 * 1024) return;
+                        buffer.write(chunk, 0, count);
+                    }
+                    String raw = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
+                    JSONArray rows = new JSONObject(raw).getJSONArray("questions");
+                    if (rows.length() > 150) return;
+                    for (int index = 0; index < rows.length(); index++) {
+                        PromptStore.Prompt.parse(rows.getJSONObject(index));
+                    }
+                    state.edit().putString("published_catalogue", rows.toString())
+                            .putLong("catalogue_sync", now).apply();
+                }
+            } catch (java.io.IOException | org.json.JSONException ignored) {
+                // Keep the last successful cache when the endpoint is unavailable.
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+}

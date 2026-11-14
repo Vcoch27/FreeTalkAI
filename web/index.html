@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f6f6f1">
+  <title>FreeTalk 日本語</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./questions.js"></script>
+  <script defer src="./backend-config.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <header><div class="header-inner">
+    <a class="brand" href="./index.html" aria-label="FreeTalk, trang luyện tập"><span class="mark" lang="ja">話</span><span>FreeTalk <small lang="ja">日本語</small></span></a>
+    <button id="open-settings" class="quiet">Cài đặt</button>
+  </div></header>
+  <main>
+    <div class="section-heading"><h1>Luyện nói</h1><span id="category"></span></div>
+    <article aria-labelledby="japanese">
+      <h2 id="japanese" lang="ja"></h2>
+      <p id="translation"></p>
+      <time id="question-time"></time>
+    </article>
+  </main>
+  <dialog id="settings" aria-labelledby="settings-title">
+    <form id="preferences">
+      <div class="settings-heading"><h2 id="settings-title">Cài đặt</h2><button id="close-settings" type="button" class="quiet">Đóng</button></div>
+      <label class="toggle"><input id="show-translation" type="checkbox"> Hiện bản dịch tiếng Việt</label>
+      <section id="notification-settings" hidden>
+        <label class="toggle"><input id="reminders" type="checkbox"> Bật thông báo luyện nói</label>
+      </section>
+      <label for="interval">Đổi câu mỗi</label>
+      <select id="interval"><option value="60">1 giờ</option><option value="120">2 giờ</option><option value="180">3 giờ</option><option value="240">4 giờ</option></select>
+      <div class="hours">
+        <label>Bắt đầu từ <input id="start" type="time" required></label>
+        <label>Đến trước <input id="end" type="time" required></label>
+      </div>
+      <section id="android-settings" hidden>
+        <p class="muted">Thêm widget FreeTalk từ menu widget trên màn hình chính.</p>
+        <button id="test-reminder" type="button">Thử thông báo</button>
+      </section>
+      <section id="web-settings">
+        <p class="muted">Trên iPhone, mở bằng Safari, chọn Chia sẻ rồi chọn Thêm vào màn hình chính.</p>
+      </section>
+      <p id="settings-status" role="status"></p>
+      <button class="primary" type="submit">Lưu cài đặt</button>
+    </form>
+  </dialog>
+</body>
+</html>

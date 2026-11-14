@@ -1,0 +1,10 @@
+node_modules/
+.gradle/
+build/
+local.properties
+.env*
+.vercel/
+*.apk
+*.jks
+*.keystore
+__pycache__/
