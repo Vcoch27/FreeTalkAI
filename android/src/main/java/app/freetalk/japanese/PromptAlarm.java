@@ -16,27 +16,23 @@ import android.text.Spanned;
 import android.text.style.RelativeSizeSpan;
 
 import java.time.LocalTime;
-import java.time.ZonedDateTime;
+import java.time.Instant;
+import java.time.Duration;
 
 public final class PromptAlarm extends BroadcastReceiver {
     private static final String TICK = "app.freetalk.japanese.TICK";
     private static final String CHANNEL = "practice_voice";
 
     @Override public void onReceive(Context context, Intent intent) {
-        refresh(context, TICK.equals(intent.getAction()));
+        boolean tick = TICK.equals(intent.getAction());
+        refresh(context, tick);
         schedule(context);
-        if (TICK.equals(intent.getAction())) {
-            PendingResult result = goAsync();
-            CatalogueSync.refresh(context, result::finish);
-        }
-    }
-
-    private static LocalTime start(PromptStore store) {
-        return LocalTime.parse(store.state.getString("start", PromptStore.START));
-    }
-
-    private static LocalTime end(PromptStore store) {
-        return LocalTime.parse(store.state.getString("end", PromptStore.END));
+        PendingResult result = goAsync();
+        CatalogueSync.refresh(context, () ->
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                    try { refresh(context, tick); schedule(context); }
+                    finally { result.finish(); }
+                }));
     }
 
     static void schedule(Context context) {
@@ -44,46 +40,39 @@ public final class PromptAlarm extends BroadcastReceiver {
         AlarmManager alarms = context.getSystemService(AlarmManager.class);
         PendingIntent alarm = PendingIntent.getBroadcast(context, 0,
                 new Intent(context, PromptAlarm.class).setAction(TICK), PendingIntent.FLAG_IMMUTABLE);
-        alarms.cancel(alarm);
-
-        ZonedDateTime now = ZonedDateTime.now();
-        ZonedDateTime next = now.toLocalDate().atTime(start(store)).atZone(now.getZone());
-        long interval = store.state.getInt("interval", PromptStore.INTERVAL);
-        while (!next.isAfter(now) && next.toLocalTime().isBefore(end(store))) next = next.plusMinutes(interval);
-        if (!next.toLocalTime().isBefore(end(store))) {
-            next = now.toLocalDate().plusDays(1).atTime(start(store)).atZone(now.getZone());
-        }
-        alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toInstant().toEpochMilli(), alarm);
-    }
-
-    private static ZonedDateTime latestSlot(PromptStore store, ZonedDateTime now) {
-        LocalTime start = start(store);
-        int interval = store.state.getInt("interval", PromptStore.INTERVAL);
-        boolean beforeStart = now.toLocalTime().isBefore(start);
-        LocalTime limit = beforeStart || !now.toLocalTime().isBefore(end(store))
-                ? end(store).minusNanos(1) : now.toLocalTime();
-        long minute = java.time.Duration.between(start, limit).toMinutes();
-        return now.toLocalDate().minusDays(beforeStart ? 1 : 0)
-                .atTime(start).plusMinutes((minute / interval) * interval).atZone(now.getZone());
+        Instant now = Instant.now();
+        org.json.JSONObject entry = store.entry(now, true);
+        Instant next = entry == null ? now.plus(Duration.ofMinutes(15)) : Instant.parse(entry.optString("slot"));
+        alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toEpochMilli(), alarm);
     }
 
     static String currentSlot(PromptStore store) {
-        return store.state.getString("last_slot", latestSlot(store, ZonedDateTime.now()).toInstant().toString());
+        org.json.JSONObject entry = store.entry(Instant.now(), false);
+        return entry == null ? Instant.now().toString() : entry.optString("slot");
     }
 
     static void refresh(Context context, boolean allowNotification) {
         PromptStore store = new PromptStore(context);
-        ZonedDateTime now = ZonedDateTime.now();
-        ZonedDateTime slot = latestSlot(store, now);
-        String key = slot.toInstant().toString();
-        String previous = store.state.getString("last_slot", "");
-        if (key.equals(previous)) return;
-        PromptStore.Prompt next = store.next(key);
-        PromptWidget.updateAll(context);
-        boolean active = !now.toLocalTime().isBefore(start(store)) && now.toLocalTime().isBefore(end(store));
-        if (allowNotification && active && store.state.getBoolean("enabled", false)
-                && (!previous.isEmpty() || java.time.Duration.between(slot, now).toMinutes() < 10)) {
-            notify(context, next, key, false);
+        Instant now = Instant.now();
+        org.json.JSONObject entry = store.entry(now, false);
+        if (entry == null) return;
+        String key = entry.optString("slot");
+        org.json.JSONObject question = entry.optJSONObject("question");
+        if (question == null) return;
+        if (!key.equals(store.state.getString("last_slot", ""))) {
+            store.state.edit().putString("current_snapshot", question.toString())
+                    .putString("last_slot", key).apply();
+            PromptWidget.updateAll(context);
+        }
+        LocalTime start = LocalTime.parse(store.state.getString("start", PromptStore.START));
+        LocalTime end = LocalTime.parse(store.state.getString("end", PromptStore.END));
+        LocalTime local = LocalTime.now();
+        if (allowNotification && store.state.getBoolean("enabled", false)
+                && !local.isBefore(start) && local.isBefore(end)
+                && Duration.between(Instant.parse(key), now).toMinutes() < 10
+                && !key.equals(store.state.getString("last_notified", ""))) {
+            store.state.edit().putString("last_notified", key).apply();
+            notify(context, store.current(), key, false);
         }
     }
 

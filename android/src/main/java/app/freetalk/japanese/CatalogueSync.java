@@ -2,7 +2,6 @@ package app.freetalk.japanese;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -51,16 +50,9 @@ final class CatalogueSync {
                 }
                 String raw = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
                 JSONObject data = new JSONObject(raw);
-                JSONArray rows = data.getJSONArray("questions");
-                JSONObject rotation = data.optJSONObject("rotation");
-                if (rows.length() > 250) return;
-                for (int index = 0; index < rows.length(); index++) {
-                    PromptStore.Prompt.parse(rows.getJSONObject(index));
-                }
-                state.edit().putString("published_catalogue", rows.toString())
-                        .putBoolean("catalogue_managed", data.optBoolean("managed"))
-                        .putString("rotation_order", rotation == null ? "ordered" : rotation.optString("order", "ordered"))
-                        .putString("rotation_topic", rotation == null ? "all" : rotation.optString("topic", "all"))
+                if (data.getJSONArray("entries").length() == 0) return;
+                java.time.OffsetDateTime.parse(data.getString("validUntil"));
+                state.edit().putString("discussion_schedule", raw)
                         .putLong("catalogue_sync", now).apply();
             }
         } catch (java.io.IOException | org.json.JSONException ignored) {

@@ -13,8 +13,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Collections;
-import java.util.Random;
 
 final class PromptStore {
     static final String START = "08:00";
@@ -71,38 +69,25 @@ final class PromptStore {
         return prompts.stream().filter(prompt -> prompt.id().equals(id)).findFirst().orElse(prompts.get(0));
     }
 
-    synchronized Prompt next(String slot) {
-        Prompt current = current();
-        List<Prompt> remote = new ArrayList<>();
-        try {
-            JSONArray rows = new JSONArray(state.getString("published_catalogue", "[]"));
-            for (int i = 0; i < rows.length(); i++) remote.add(Prompt.parse(rows.getJSONObject(i)));
-        } catch (JSONException ignored) { remote.clear(); }
-        List<Prompt> available = new ArrayList<>();
-        if (!state.getBoolean("catalogue_managed", false) || remote.isEmpty()) available.addAll(prompts);
-        available.addAll(remote);
-        String topic = state.getString("rotation_topic", "all");
-        List<Prompt> pool = new ArrayList<>();
-        for (Prompt prompt : available) {
-            if ("all".equals(topic) || topic.equals(prompt.topic())) pool.add(prompt);
+    JSONObject discussionSchedule() {
+        try { return new JSONObject(state.getString("discussion_schedule", "{}")); }
+        catch (JSONException ignored) { return new JSONObject(); }
+    }
+
+    JSONObject entry(java.time.Instant now, boolean upcoming) {
+        JSONArray entries = discussionSchedule().optJSONArray("entries");
+        if (entries == null) return null;
+        JSONObject match = null;
+        for (int index = 0; index < entries.length(); index++) {
+            JSONObject row = entries.optJSONObject(index);
+            if (row == null) continue;
+            try {
+                boolean future = java.time.Instant.parse(row.getString("slot")).isAfter(now);
+                if (future) return upcoming ? row : match;
+                match = row;
+            } catch (JSONException | java.time.DateTimeException ignored) { }
         }
-        if (pool.isEmpty()) pool.addAll(available);
-        String order = state.getString("rotation_order", "ordered");
-        if ("reverse".equals(order)) Collections.reverse(pool);
-        if ("shuffle".equals(order)) Collections.shuffle(pool, new Random(41));
-        int previous = -1;
-        for (int i = 0; i < pool.size(); i++) {
-            if (pool.get(i).id().equals(current.id())) previous = i;
-        }
-        // Begin at the first row on a fresh install or when changing to a new group.
-        if (!state.contains("last_slot")) previous = -1;
-        Prompt next = pool.get((previous + 1) % pool.size());
-        SharedPreferences.Editor edit = state.edit().putString("current", next.id());
-        try { edit.putString("current_snapshot", next.json().toString()); }
-        catch (JSONException error) { throw new IllegalStateException(error); }
-        edit.putString("last_slot", slot);
-        if (!edit.commit()) throw new IllegalStateException("Cannot save current question");
-        return next;
+        return upcoming ? null : match;
     }
 
     String preferences() {

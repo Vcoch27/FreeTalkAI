@@ -52,3 +52,8 @@ select { display: block; width: 100%; margin: 4px 0 12px; }
 }
 
 #question-time { display: block; margin-top: 20px; color: var(--muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
+
+[hidden] { display: none !important; }
+#idea-prompt { display: block; width: 100%; margin: 8px 0 12px; padding: 10px; font: inherit; color: var(--text); background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+#direction h3 { font-size: 1rem; margin: 14px 0 4px; }
+#device-settings button { margin-top: 10px; }

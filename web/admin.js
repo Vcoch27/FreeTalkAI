@@ -49,6 +49,7 @@ async function refresh() {
   revision = catalogue.revision;
   questions = catalogue.questions;
   byId("rotation-topic").value = catalogue.rotation?.topic || "all";
+  byId("discussion-interval").value = catalogue.rotation?.discussionInterval || 120;
   byId("rotation-order").value = catalogue.rotation?.order || "ordered";
   render();
 }
@@ -137,9 +138,9 @@ byId("import").onsubmit = event => submit(event, "message", async () => {
   byId("message").textContent = `Đã nhập ${result.count} bản nháp. Bỏ qua ${result.duplicates} câu trùng.`;
 });
 byId("rotation").onsubmit = event => submit(event, "message", async () => {
-  await api("question", "PUT", {action:"rotation", revision, topic:byId("rotation-topic").value, order:byId("rotation-order").value});
+  await api("question", "PUT", {action:"rotation", revision, topic:byId("rotation-topic").value, order:byId("rotation-order").value, discussionInterval:Number(byId("discussion-interval").value)});
   await refresh();
-  byId("message").textContent = "Đã lưu cách phát. App dùng cấu hình mới sau lần đồng bộ.";
+  byId("message").textContent = "Đã lưu. Lịch đã chốt được giữ nguyên.";
 });
 byId("publish-drafts").onclick = async () => {
   const count = questions.filter(row => row.status === "draft").length;

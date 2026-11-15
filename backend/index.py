@@ -193,7 +193,10 @@ def configure_catalogue(data, revision, state):
         order, topic = data.get("order"), data.get("topic")
         if order not in ("ordered", "reverse", "shuffle") or topic not in ("all", "life", "work"):
             raise Problem(422, "Cách phát hoặc nhóm câu không hợp lệ.")
-        state["rotation"] = {"order": order, "topic": topic}
+        interval = data.get("discussionInterval", state.get("rotation", {}).get("discussionInterval", 120))
+        if interval not in (60, 120, 180, 240):
+            raise Problem(422, "Chu kỳ lịch chung không hợp lệ.")
+        state["rotation"] = {"order": order, "topic": topic, "discussionInterval": interval}
         write("catalogue", revision, state)
         return reply(200, state["rotation"])
     if action == "publish_drafts":
@@ -274,10 +277,73 @@ def admin(method, path, event):
     raise Problem(404, "Không tìm thấy.")
 
 
+DISCUSSION_TZ = timezone(timedelta(hours=7))
+COACHING = {
+    "everyday": ["Nêu việc bạn sẽ làm trước và lý do.", "Hỏi người kia từng gặp chuyện tương tự chưa."],
+    "roleplay": ["Xác định vai của bạn, điều bạn muốn nói và phản ứng bạn dự đoán.", "Hỏi điều gì sẽ đổi nếu đối phương là bạn thân hoặc người mới gặp."],
+    "debate": ["Chọn một phía và nêu lý do bằng một ví dụ cụ thể.", "Hỏi trong trường hợp nào người kia sẽ đổi ý."],
+    "brainstorm": ["Nghĩ một cách dễ làm và một cách khác lạ, rồi chọn một cách để giải thích.", "Hỏi người kia sẽ thay đổi ý tưởng thế nào nếu thời gian hoặc chi phí giảm một nửa."],
+    "what_if": ["Chọn một khả năng và nói điều gì sẽ thay đổi đầu tiên.", "Đổi một điều kiện trong giả định rồi hỏi người kia dự đoán kết quả."],
+    "storytelling": ["Chọn một kỷ niệm nhỏ và kể điều gì xảy ra trước, sau đó bạn đã làm gì.", "Hỏi người kia có kỷ niệm tương tự không và nhắc lại một chi tiết họ kể."],
+    "reflection": ["Chọn một chi tiết có thật và giải thích vì sao bạn nhớ hoặc quan tâm.", "Hỏi người kia sẽ nhìn chi tiết đó khác bạn ở điểm nào."],
+    "creative_problem_solving": ["Chỉ ra trở ngại chính rồi chọn một việc nhỏ có thể thử ngay.", "Hỏi điều gì có thể làm phương án thất bại và cùng nghĩ cách chỉnh."],
+}
+
+
+def discussion_day(day, state):
+    key = "discussion-v1:" + day.isoformat()
+    _, saved = read(key)
+    if saved is not None:
+        return saved
+    rotation = state.get("rotation", {})
+    published = [row for row in state["questions"] if row["status"] == "published"]
+    topic = rotation.get("topic", "all")
+    pool = [row for row in published if topic == "all" or row.get("topic", "life") == topic] or published
+    if not pool:
+        raise Problem(503, "Chưa có tình huống đã xuất bản.")
+    if rotation.get("order") == "reverse":
+        pool.reverse()
+    elif rotation.get("order") == "shuffle":
+        pool.sort(key=lambda row: hashlib.sha256(row["id"].encode()).digest())
+    interval = rotation.get("discussionInterval", 120)
+    start = datetime.combine(day, datetime.min.time(), tzinfo=DISCUSSION_TZ) + timedelta(hours=8)
+    slots = list(range(0, 14 * 60, interval))
+    base = (day - datetime(2026, 1, 1).date()).days * len(slots)
+    entries = []
+    for index, minutes in enumerate(slots):
+        row = pool[(base + index) % len(pool)]
+        entries.append({
+            "slot": (start + timedelta(minutes=minutes)).astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "question": {**{key: row[key] for key in ("id", "ja", "vi", "mode")}, "topic": row.get("topic", "life")},
+        })
+    try:
+        write(key, 0, entries)
+    except Problem as error:
+        if error.status != 409:
+            raise
+        _, entries = read(key)
+    return entries
+
+
+def discussion_schedule():
+    now = datetime.now(DISCUSSION_TZ)
+    _, state = catalogue()
+    today = now.date()
+    entries = discussion_day(today - timedelta(days=1), state)[-1:]
+    entries += discussion_day(today, state)
+    entries += discussion_day(today + timedelta(days=1), state)
+    expires = datetime.combine(today + timedelta(days=2), datetime.min.time(), tzinfo=DISCUSSION_TZ) + timedelta(hours=8)
+    return reply(200, {"entries": entries, "validUntil": expires.isoformat(),
+                       "zone": "Asia/Ho_Chi_Minh", "coaching": COACHING})
+
+
+
 def handler(event, context):
     method = event.get("requestContext", {}).get("http", {}).get("method")
     path = event.get("rawPath", "")
     try:
+        if method == "GET" and path == "/v1/schedule":
+            return discussion_schedule()
         if method == "GET" and path == "/questions":
             _, state = catalogue()
             return reply(200, {"questions": [

@@ -39,14 +39,16 @@ jobs:
           test -f "$app/FreeTalk"
           test -f "$widget/FreeTalkWidget"
           test -f "$app/lets_talk.wav"
-          cmp "$app/questions.json" "$widget/questions.json"
+          cmp "$app/backend-url.txt" "$widget/backend-url.txt"
+          test -f "$app/Client/index.html"
+          test -f "$app/Client/app.js"
           test "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$widget/Info.plist")" = com.apple.widgetkit-extension
           mkdir -p ios/build/package/Payload ios/build/artifacts
           ditto "$app" ios/build/package/Payload/FreeTalk.app
-          (cd ios/build/package && zip -qr ../artifacts/FreeTalk-iOS-0.4.0-unsigned.ipa Payload)
-          unzip -tq ios/build/artifacts/FreeTalk-iOS-0.4.0-unsigned.ipa
+          (cd ios/build/package && zip -qr ../artifacts/FreeTalk-iOS-0.5.0-unsigned.ipa Payload)
+          unzip -tq ios/build/artifacts/FreeTalk-iOS-0.5.0-unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: FreeTalk-iOS-unsigned
-          path: ios/build/artifacts/FreeTalk-iOS-0.4.0-unsigned.ipa
+          path: ios/build/artifacts/FreeTalk-iOS-0.5.0-unsigned.ipa
           if-no-files-found: error

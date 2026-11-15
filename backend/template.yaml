@@ -69,6 +69,12 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri: !GetAtt Handler.Arn
       PayloadFormatVersion: '2.0'
+  DiscussionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: GET /v1/schedule
+      Target: !Sub 'integrations/${Integration}'
   QuestionsRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:

@@ -1,122 +1,83 @@
 const byId = id => document.getElementById(id);
-const native = globalThis.FreeTalkAndroid;
-const questions = globalThis.QUESTIONS;
-const catalogueKey = "published-catalogue";
-const slotKey = "current-slot";
-const catalogueConfigKey = "published-catalogue-config";
-let published = native ? [] : JSON.parse(localStorage.getItem(catalogueKey) || "[]");
-let catalogueConfig = native ? {} : JSON.parse(localStorage.getItem(catalogueConfigKey) || "{}");
-
-async function refreshCatalogue() {
-  if (native || !globalThis.FREETALK_API) return;
-  try {
-    const response = await fetch(globalThis.FREETALK_API + "/questions", {signal: AbortSignal.timeout(5000)});
-    if (!response.ok) return;
-    const data = await response.json();
-    if (!Array.isArray(data.questions)) return;
-    published = data.questions;
-    catalogueConfig = {rotation: data.rotation || {}, managed: data.managed === true};
-    localStorage.setItem(catalogueConfigKey, JSON.stringify(catalogueConfig));
-    localStorage.setItem(catalogueKey, JSON.stringify(published));
-  } catch {
-    // The bundled questions and last successful catalogue remain available offline.
-  }
-}
+const native = globalThis.FreeTalkAndroid || globalThis.FreeTalkIOS;
 const settings = byId("settings");
-const link = new URLSearchParams(location.search);
+const hints = byId("suggestions");
+const defaults = { translation: true, enabled: false, interval: 120, start: "08:00", end: "22:00" };
 const labels = {
   roleplay: "Nhập vai", brainstorm: "Brainstorming", storytelling: "Kể chuyện", everyday: "Đời sống",
   debate: "Nêu quan điểm", what_if: "Giả định", reflection: "Nhìn lại", creative_problem_solving: "Giải quyết vấn đề",
 };
-const defaults = { translation: true, enabled: false, interval: 120, start: "08:00", end: "22:00" };
 const dateFormat = new Intl.DateTimeFormat("vi-VN", {
   hour: "2-digit", minute: "2-digit", hourCycle: "h23", day: "2-digit", month: "2-digit", year: "numeric",
 });
-let prefs = native ? JSON.parse(native.preferences()) : {
-  ...defaults, translation: localStorage.getItem("translation") !== "false",
-  ...JSON.parse(localStorage.getItem("schedule") || "{}"),
-};
-let refreshTimer;
+const cacheKey = "freetalk-shared-schedule-v1";
+let feed = null;
+let prefs = { ...defaults, translation: native || localStorage.getItem("translation") !== "false" };
+let current = null;
+let timer;
+let requestPending = false;
 
-// A fixed shuffle keeps each slot stable across reloads, tabs and offline use.
-function rotationPool() {
-  const { order = "ordered", topic = "all" } = catalogueConfig.rotation || {};
-  const source = catalogueConfig.managed && published.length ? published : [...questions, ...published];
-  let pool = source.filter(question => topic === "all" || (question.topic || "life") === topic);
-  if (!pool.length) pool = [...source];
-  if (order === "reverse") pool.reverse();
-  if (order === "shuffle") {
-    let seed = 41;
-    for (let i = pool.length - 1; i > 0; i--) {
-      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-      const j = seed % (i + 1);
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-  }
-  return pool;
+function parsed(json, fallback) {
+  try { return JSON.parse(json) ?? fallback; } catch { return fallback; }
 }
 
-function minutes(value) {
-  const [hours, minutes] = value.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function webAssignment(now) {
-  const start = minutes(prefs.start);
-  const count = Math.ceil((minutes(prefs.end) - start) / prefs.interval);
-  const elapsed = now.getHours() * 60 + now.getMinutes() - start;
-  const index = Math.min(Math.floor(elapsed / prefs.interval), count - 1);
-  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (index < 0 ? 1 : 0));
-  const slotIndex = index < 0 ? count - 1 : index;
-  const slot = new Date(day);
-  slot.setHours(0, start + slotIndex * prefs.interval, 0, 0);
-  const next = new Date(slot);
-  if (slotIndex + 1 === count) {
-    next.setDate(next.getDate() + 1);
-    next.setHours(0, start, 0, 0);
-  } else {
-    next.setHours(0, start + (slotIndex + 1) * prefs.interval, 0, 0);
+async function sync() {
+  if (native || requestPending || !globalThis.FREETALK_API) return;
+  requestPending = true;
+  try {
+    const response = await fetch(globalThis.FREETALK_API + "/v1/schedule", { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) return;
+    const data = await response.json();
+    if (!Array.isArray(data.entries) || !data.entries.length || !Number.isFinite(Date.parse(data.validUntil))) return;
+    feed = data;
+    localStorage.setItem(cacheKey, JSON.stringify(feed));
+  } catch {
+    // A successfully fetched timeline is usable until its last confirmed boundary.
+  } finally {
+    requestPending = false;
+    render();
   }
-  const key = slot.toISOString();
-  let assignment = JSON.parse(localStorage.getItem(slotKey) || "null");
-  if (assignment?.slot !== key) {
-    const pool = rotationPool();
-    const previous = pool.findIndex(question => question.id === assignment?.question.id);
-    const nextIndex = previous < 0 ? 0 : (previous + 1) % pool.length;
-    assignment = {slot: key, question: pool[nextIndex]};
-
-    localStorage.setItem(slotKey, JSON.stringify(assignment));
-  }
-  return {...assignment, next};
 }
 
 function render() {
-  clearTimeout(refreshTimer);
-  const now = new Date();
-  const current = native ? JSON.parse(native.currentAssignment()) : webAssignment(now);
-  const linked = [...published, ...questions].find(question => question.id === link.get("question"));
-  const question = linked || current.question || questions[0];
-  const linkedSlot = linked ? Date.parse(link.get("slot")) : NaN;
-  const slot = new Date(Number.isFinite(linkedSlot) ? linkedSlot : current.slot);
-  byId("category").textContent = labels[question.mode];
-  byId("japanese").textContent = question.ja;
-  byId("translation").textContent = question.vi;
-  byId("translation").hidden = !prefs.translation;
-  byId("question-time").dateTime = slot.toISOString();
-  byId("question-time").textContent = dateFormat.format(slot);
-  if (current.next && !linked) {
-    refreshTimer = setTimeout(() => {
-      render();
-      void refreshCatalogue();
-    }, Math.max(50, current.next - now));
+  clearTimeout(timer);
+  const now = Date.now();
+  if (native) {
+    prefs = { ...defaults, ...parsed(native.preferences(), {}) };
+    feed = parsed(native.discussionSchedule(), null);
   }
+  const entries = feed?.entries || [];
+  const active = entries.filter(entry => Date.parse(entry.slot) <= now).at(-1);
+  const stale = !feed || now >= Date.parse(feed.validUntil);
+  const history = native ? parsed(native.linkedAssignment(), null) : null;
+  const next = entries.find(entry => Date.parse(entry.slot) > now);
+  const entry = history || active;
+  if (entry?.slot !== current?.slot || entry?.question.id !== current?.question.id) {
+    byId("direction").hidden = true;
+  }
+  current = entry;
+  byId("discussion").hidden = !entry;
+  byId("open-suggestions").hidden = !entry;
+  byId("schedule-status").textContent = !entry ? "Đang tải tình huống chung. Hãy kết nối mạng để đồng bộ lần đầu."
+    : stale && !history ? "Đang hiển thị tình huống đã lưu. Kết nối mạng để cập nhật lịch chung." : "";
+  if (entry) {
+    byId("category").textContent = labels[entry.question.mode] || "";
+    byId("japanese").textContent = entry.question.ja;
+    byId("translation").textContent = entry.question.vi;
+    byId("translation").hidden = !prefs.translation;
+    byId("question-time").dateTime = entry.slot;
+    byId("question-time").textContent = dateFormat.format(new Date(entry.slot));
+  }
+  const nextTime = Math.min(next ? Date.parse(next.slot) : Infinity, now + 15 * 60 * 1000);
+  timer = setTimeout(() => {
+    render();
+    void sync();
+  }, Math.max(100, nextTime - now));
 }
 
 byId("open-settings").onclick = () => {
-  if (native) prefs = JSON.parse(native.preferences());
   byId("show-translation").checked = prefs.translation;
   byId("reminders").checked = prefs.enabled;
-  byId("interval").value = prefs.interval;
   byId("start").value = prefs.start;
   byId("end").value = prefs.end;
   byId("settings-status").textContent = "";
@@ -125,41 +86,58 @@ byId("open-settings").onclick = () => {
 byId("close-settings").onclick = () => settings.close();
 byId("preferences").onsubmit = event => {
   event.preventDefault();
-  const updated = {
-    translation: byId("show-translation").checked, enabled: byId("reminders").checked,
-    interval: Number(byId("interval").value), start: byId("start").value, end: byId("end").value,
-  };
-  if (updated.start >= updated.end) {
+  const updated = {...prefs, translation: byId("show-translation").checked, enabled: byId("reminders").checked,
+    start: byId("start").value, end: byId("end").value };
+  if (native && updated.start >= updated.end) {
     byId("settings-status").textContent = "Giờ kết thúc phải sau giờ bắt đầu trong cùng ngày.";
     return;
   }
-  if (native) {
-    if (!native.savePreferences(JSON.stringify(updated))) {
-      byId("settings-status").textContent = "Không lưu được cài đặt.";
-      return;
-    }
-  } else {
-    localStorage.setItem("schedule", JSON.stringify(updated));
+  if (native && !native.savePreferences(JSON.stringify(updated))) {
+    byId("settings-status").textContent = "Không lưu được cài đặt.";
+    return;
   }
+  if (!native) localStorage.setItem("translation", String(updated.translation));
   prefs = updated;
-  render();
   settings.close();
+  render();
 };
 
 byId("notification-settings").hidden = !native;
-byId("android-settings").hidden = !native;
-byId("web-settings").hidden = !!native;
+byId("device-settings").hidden = !native;
 byId("test-reminder").onclick = () => native?.testReminder();
+byId("open-suggestions").onclick = () => hints.showModal();
+byId("close-suggestions").onclick = () => hints.close();
+byId("ideas").onsubmit = event => {
+  event.preventDefault();
+  if (!current) return;
+  const question = current.question;
+  const preference = byId("idea-prompt").value.trim().toLocaleLowerCase("vi");
+  const [opening, continuation] = feed?.coaching?.[question.mode] || [
+    "Chọn một việc bạn sẽ làm và nói lý do.",
+    "Hỏi người kia có trải nghiệm nào tương tự, rồi hỏi thêm về một chi tiết họ vừa kể.",
+  ];
+  const focus = /công việc|đồng nghiệp|lịch sự|khách hàng/.test(preference)
+    ? "Đặt mình vào vai người đang trao đổi với đồng nghiệp hoặc khách. Chọn cách mở lời phù hợp với mối quan hệ."
+    : /ngắn|đơn giản|mới học|dễ/.test(preference)
+      ? "Bắt đầu bằng một ý dễ nói. Sau khi người kia trả lời, hỏi thêm một câu bắt đầu từ điều họ vừa nhắc."
+      : /cá nhân|trải nghiệm|bản thân/.test(preference)
+        ? "Liên hệ với một việc bạn từng trải qua, rồi chọn một chi tiết cụ thể để kể."
+        : "Đặt mình vào tình huống đang hiển thị và chọn ý gần với trải nghiệm của bạn nhất.";
+  byId("idea-focus").textContent = focus;
+  byId("idea-opening").textContent = opening;
+  byId("idea-continue").textContent = continuation;
+  byId("direction").hidden = false;
+};
+
 window.addEventListener("freetalk-update", render);
 window.addEventListener("pageshow", render);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     render();
-    void refreshCatalogue();
+    void sync();
   }
 });
+if (!native) feed = parsed(localStorage.getItem(cacheKey), null);
 render();
-void refreshCatalogue();
-if (!native && "serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(error => console.warn("Không bật được bộ nhớ ngoại tuyến", error));
-}
+void sync();
+if (!native && "serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});

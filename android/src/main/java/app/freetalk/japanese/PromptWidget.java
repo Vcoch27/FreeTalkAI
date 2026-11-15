@@ -25,6 +25,16 @@ public final class PromptWidget extends AppWidgetProvider {
         if (ids.length == 0) return;
         PromptStore store = new PromptStore(context);
         PromptStore.Prompt prompt = store.current();
+        if (store.entry(java.time.Instant.now(), false) == null) {
+            RemoteViews placeholder = new RemoteViews(context.getPackageName(), R.layout.prompt_widget);
+            placeholder.setTextViewText(R.id.widget_ja, "FreeTalk 日本語");
+            placeholder.setTextViewText(R.id.widget_vi, "Mở app để đồng bộ");
+            Intent launch = new Intent(context, MainActivity.class);
+            placeholder.setOnClickPendingIntent(R.id.widget_root,
+                    PendingIntent.getActivity(context, 1, launch, PendingIntent.FLAG_IMMUTABLE));
+            manager.updateAppWidget(ids, placeholder);
+            return;
+        }
         String slot = PromptAlarm.currentSlot(store);
         java.time.ZonedDateTime local = java.time.Instant.parse(slot).atZone(java.time.ZoneId.systemDefault());
         RemoteViews layout = new RemoteViews(context.getPackageName(), R.layout.prompt_widget);

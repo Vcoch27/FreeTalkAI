@@ -9,7 +9,6 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="apple-touch-icon" href="./icon-192.png">
   <link rel="stylesheet" href="./style.css">
-  <script defer src="./questions.js"></script>
   <script defer src="./backend-config.js"></script>
   <script defer src="./app.js"></script>
 </head>
@@ -20,12 +19,27 @@
   </div></header>
   <main>
     <div class="section-heading"><h1>Luyện nói</h1><span id="category"></span></div>
-    <article aria-labelledby="japanese">
+    <article id="discussion" aria-labelledby="japanese" hidden>
       <h2 id="japanese" lang="ja"></h2>
       <p id="translation"></p>
       <time id="question-time"></time>
     </article>
+    <p id="schedule-status" class="muted" role="status"></p>
+    <button id="open-suggestions" class="quiet" type="button" hidden>Đề xuất cách nói chuyện</button>
   </main>
+  <dialog id="suggestions" aria-labelledby="suggestions-title">
+    <form id="ideas">
+      <div class="settings-heading"><h2 id="suggestions-title">Đề xuất</h2><button id="close-suggestions" class="quiet" type="button">Đóng</button></div>
+      <label for="idea-prompt">Bạn muốn nói theo hướng nào?</label>
+      <textarea id="idea-prompt" rows="2" maxlength="200" placeholder="Ví dụ: ngắn, lịch sự hoặc dựa trên trải nghiệm cá nhân"></textarea>
+      <button class="primary">Xem hướng nói</button>
+      <div id="direction" aria-live="polite" hidden>
+        <p id="idea-focus" class="muted"></p>
+        <h3>Bắt chuyện</h3><p id="idea-opening"></p>
+        <h3>Kéo dài cuộc nói chuyện</h3><p id="idea-continue"></p>
+      </div>
+    </form>
+  </dialog>
   <dialog id="settings" aria-labelledby="settings-title">
     <form id="preferences">
       <div class="settings-heading"><h2 id="settings-title">Cài đặt</h2><button id="close-settings" type="button" class="quiet">Đóng</button></div>
@@ -33,18 +47,13 @@
       <section id="notification-settings" hidden>
         <label class="toggle"><input id="reminders" type="checkbox"> Bật thông báo luyện nói</label>
       </section>
-      <label for="interval">Đổi câu mỗi</label>
-      <select id="interval"><option value="60">1 giờ</option><option value="120">2 giờ</option><option value="180">3 giờ</option><option value="240">4 giờ</option></select>
-      <div class="hours">
-        <label>Bắt đầu từ <input id="start" type="time" required></label>
-        <label>Đến trước <input id="end" type="time" required></label>
-      </div>
-      <section id="android-settings" hidden>
-        <p class="muted">Thêm widget FreeTalk từ menu widget trên màn hình chính.</p>
+      <p class="muted">Mọi người dùng chung lịch tình huống theo giờ Việt Nam.</p>
+      <section id="device-settings" hidden>
+        <div class="hours">
+          <label>Nhắc từ <input id="start" type="time"></label>
+          <label>Đến trước <input id="end" type="time"></label>
+        </div>
         <button id="test-reminder" type="button">Thử thông báo</button>
-      </section>
-      <section id="web-settings">
-        <p class="muted">Trên iPhone, mở bằng Safari, chọn Chia sẻ rồi chọn Thêm vào màn hình chính.</p>
       </section>
       <p id="settings-status" role="status"></p>
       <button class="primary" type="submit">Lưu cài đặt</button>

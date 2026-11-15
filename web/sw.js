@@ -1,5 +1,5 @@
-const cacheName = "freetalk-shell-v5";
-const shell = ["./index.html", "./style.css", "./questions.js", "./app.js", "./backend-config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+const cacheName = "freetalk-shell-v7";
+const shell = ["./index.html", "./style.css", "./app.js", "./backend-config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(cacheName).then(cache => cache.addAll(shell)).then(() => self.skipWaiting()));

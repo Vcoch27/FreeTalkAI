@@ -4,8 +4,8 @@ options:
     iOS: "17.0"
 settings:
   base:
-    MARKETING_VERSION: "0.4.0"
-    CURRENT_PROJECT_VERSION: "4"
+    MARKETING_VERSION: "0.5.0"
+    CURRENT_PROJECT_VERSION: "5"
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1"
 targets:
@@ -15,7 +15,10 @@ targets:
     sources:
       - App
       - Shared
-      - path: Generated/questions.json
+      - path: Generated/backend-url.txt
+        buildPhase: resources
+      - path: Generated/Client
+        type: folder
         buildPhase: resources
       - path: Generated/lets_talk.wav
         buildPhase: resources
@@ -23,6 +26,8 @@ targets:
       path: Generated/App-Info.plist
       properties:
         CFBundleDisplayName: FreeTalk
+        CFBundleShortVersionString: "0.5.0"
+        CFBundleVersion: "5"
         UILaunchScreen: {}
         CFBundleURLTypes:
           - CFBundleURLSchemes: [freetalk-jp]
@@ -39,12 +44,14 @@ targets:
     sources:
       - Widget
       - Shared
-      - path: Generated/questions.json
+      - path: Generated/backend-url.txt
         buildPhase: resources
     info:
       path: Generated/Widget-Info.plist
       properties:
         CFBundleDisplayName: FreeTalk
+        CFBundleShortVersionString: "0.5.0"
+        CFBundleVersion: "5"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

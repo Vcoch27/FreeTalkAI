@@ -17,7 +17,7 @@ public final class MainActivity extends Activity {
     private PromptStore store;
     private volatile String linkedQuestion;
     private final android.content.SharedPreferences.OnSharedPreferenceChangeListener listener = (state, key) -> {
-        if ("last_slot".equals(key)) web.evaluateJavascript("window.dispatchEvent(new Event('freetalk-update'))", null);
+        if (("last_slot".equals(key) || "discussion_schedule".equals(key))) web.evaluateJavascript("window.dispatchEvent(new Event('freetalk-update'))", null);
     };
 
     @Override public void onCreate(Bundle state) {
@@ -44,7 +44,10 @@ public final class MainActivity extends Activity {
         super.onResume();
         PromptAlarm.refresh(this, true);
         PromptAlarm.schedule(this);
-        CatalogueSync.refresh(this);
+        CatalogueSync.refresh(this, () -> runOnUiThread(() -> {
+            PromptAlarm.refresh(this, true);
+            PromptAlarm.schedule(this);
+        }));
         store.state.registerOnSharedPreferenceChangeListener(listener);
         web.evaluateJavascript("window.dispatchEvent(new Event('freetalk-update'))", null);
     }
@@ -96,15 +99,8 @@ public final class MainActivity extends Activity {
     private boolean testPending;
     private final class Bridge {
         @JavascriptInterface public String preferences() { return store.preferences(); }
-        @JavascriptInterface public String currentAssignment() {
-            if (linkedQuestion != null) return linkedQuestion;
-            try {
-                return new org.json.JSONObject().put("question", store.current().json())
-                        .put("slot", PromptAlarm.currentSlot(store)).toString();
-            } catch (org.json.JSONException error) {
-                throw new IllegalStateException(error);
-            }
-        }
+        @JavascriptInterface public String discussionSchedule() { return store.discussionSchedule().toString(); }
+        @JavascriptInterface public String linkedAssignment() { return linkedQuestion == null ? "null" : linkedQuestion; }
         @JavascriptInterface public boolean savePreferences(String values) {
             if (!store.savePreferences(values)) return false;
             runOnUiThread(() -> {

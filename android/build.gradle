@@ -5,12 +5,12 @@ android {
     buildFeatures.buildConfig = true
 
     defaultConfig {
-        buildConfigField "String", "CATALOGUE_URL", '"https://s2fywll0h7.execute-api.ap-southeast-2.amazonaws.com/questions"'
+        buildConfigField "String", "CATALOGUE_URL", '"https://s2fywll0h7.execute-api.ap-southeast-2.amazonaws.com/v1/schedule"'
         applicationId 'app.freetalk.japanese'
         minSdk 26
         targetSdk 34
-        versionCode 4
-        versionName '0.4.0'
+        versionCode 5
+        versionName '0.5.0'
     }
 
     compileOptions {
