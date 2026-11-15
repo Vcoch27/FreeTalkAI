@@ -59,8 +59,10 @@ public final class PromptAlarm extends BroadcastReceiver {
         String key = entry.optString("slot");
         org.json.JSONObject question = entry.optJSONObject("question");
         if (question == null) return;
-        if (!key.equals(store.state.getString("last_slot", ""))) {
-            store.state.edit().putString("current_snapshot", question.toString())
+        String snapshot = question.toString();
+        if (!key.equals(store.state.getString("last_slot", ""))
+                || !snapshot.equals(store.state.getString("current_snapshot", ""))) {
+            store.state.edit().putString("current_snapshot", snapshot)
                     .putString("last_slot", key).apply();
             PromptWidget.updateAll(context);
         }

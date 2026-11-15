@@ -1,6 +1,8 @@
 # FreeTalk trên iPhone
 
-Cần iOS 17 trở lên. Bản thử có app và WidgetKit cỡ nhỏ hoặc vừa. Cả hai dùng cùng 100 câu tiếng Nhật và bản dịch từ bản Android. Lịch cố định 08:00–20:00, hai giờ một lần theo giờ iPhone. WidgetKit điều phối thời điểm làm mới. Âm báo “Let’s talk” dùng với thông báo cục bộ. Khi bật nhắc, app lên lịch khoảng một tuần mỗi lần mở. Bản iOS này dùng kho câu đóng gói.
+Cần iOS 17 trở lên. App dùng chung giao diện và lịch tình huống với Android và PWA. Widget có cỡ nhỏ và vừa trên màn hình chính, cùng cỡ chữ nhật trên màn hình khóa. App và widget tự đồng bộ từ cùng API, mỗi bên lưu lịch trong vùng dữ liệu của mình. iOS quyết định thời điểm chạy WidgetKit.
+
+Trong app, Cài đặt có bản dịch, giờ nhắc, công tắc và nút thử thông báo. Chu kỳ đổi tình huống do admin đặt chung cho mọi người. Khi app đồng bộ, nó lên lịch thông báo cục bộ từ những mốc đã có trên server. Mở lại app để lấy thêm lịch. Âm báo dùng “Let’s talk”.
 
 ## Build
 
@@ -12,4 +14,4 @@ IPA từ workflow chưa ký. Cần ký cả FreeTalk.app và FreeTalkWidget.appe
 
 Nếu dùng Xcode Personal Team, chọn cùng một team cho app và widget, rồi chạy scheme FreeTalk trực tiếp trên iPhone. Provisioning profile miễn phí hết hạn sau bảy ngày.
 
-Mở FreeTalk một lần. Sau đó giữ màn hình chính → Sửa → Thêm widget → tìm “FreeTalk” → chọn cỡ nhỏ hoặc vừa.
+Mở FreeTalk một lần. Trên màn hình chính, nhấn giữ → Sửa → Thêm widget → FreeTalk. Trên màn hình khóa, nhấn giữ → Tùy chỉnh → Màn hình khóa → Thêm widget → FreeTalk.
