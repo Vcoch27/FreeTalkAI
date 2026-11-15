@@ -18,41 +18,55 @@ final class CatalogueSync {
     private static final long REFRESH_INTERVAL = 15 * 60 * 1000L;
 
     static void refresh(Context context) {
+        refresh(context, () -> {});
+    }
+
+    static void refresh(Context context, Runnable complete) {
         Context app = context.getApplicationContext();
         executor.execute(() -> {
-            SharedPreferences state = new PromptStore(app).state;
-            long now = System.currentTimeMillis();
-            long last = state.getLong("catalogue_sync", 0);
-            if (now >= last && now - last < REFRESH_INTERVAL) return;
-            HttpsURLConnection connection = null;
-            try {
-                connection = (HttpsURLConnection) new URL(BuildConfig.CATALOGUE_URL).openConnection();
-                connection.setConnectTimeout(4000);
-                connection.setReadTimeout(4000);
-                connection.setInstanceFollowRedirects(false);
-                if (connection.getResponseCode() != 200) return;
-                try (InputStream input = connection.getInputStream()) {
-                    ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-                    byte[] chunk = new byte[4096];
-                    int count;
-                    while ((count = input.read(chunk)) != -1) {
-                        if (buffer.size() + count > 256 * 1024) return;
-                        buffer.write(chunk, 0, count);
-                    }
-                    String raw = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
-                    JSONArray rows = new JSONObject(raw).getJSONArray("questions");
-                    if (rows.length() > 150) return;
-                    for (int index = 0; index < rows.length(); index++) {
-                        PromptStore.Prompt.parse(rows.getJSONObject(index));
-                    }
-                    state.edit().putString("published_catalogue", rows.toString())
-                            .putLong("catalogue_sync", now).apply();
-                }
-            } catch (java.io.IOException | org.json.JSONException ignored) {
-                // Keep the last successful cache when the endpoint is unavailable.
-            } finally {
-                if (connection != null) connection.disconnect();
-            }
+            try { sync(app); }
+            finally { complete.run(); }
         });
+    }
+
+    private static void sync(Context app) {
+        SharedPreferences state = new PromptStore(app).state;
+        long now = System.currentTimeMillis();
+        long last = state.getLong("catalogue_sync", 0);
+        if (now >= last && now - last < REFRESH_INTERVAL) return;
+        HttpsURLConnection connection = null;
+        try {
+            connection = (HttpsURLConnection) new URL(BuildConfig.CATALOGUE_URL).openConnection();
+            connection.setConnectTimeout(4000);
+            connection.setReadTimeout(4000);
+            connection.setInstanceFollowRedirects(false);
+            if (connection.getResponseCode() != 200) return;
+            try (InputStream input = connection.getInputStream()) {
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                byte[] chunk = new byte[4096];
+                int count;
+                while ((count = input.read(chunk)) != -1) {
+                    if (buffer.size() + count > 256 * 1024) return;
+                    buffer.write(chunk, 0, count);
+                }
+                String raw = new String(buffer.toByteArray(), StandardCharsets.UTF_8);
+                JSONObject data = new JSONObject(raw);
+                JSONArray rows = data.getJSONArray("questions");
+                JSONObject rotation = data.optJSONObject("rotation");
+                if (rows.length() > 250) return;
+                for (int index = 0; index < rows.length(); index++) {
+                    PromptStore.Prompt.parse(rows.getJSONObject(index));
+                }
+                state.edit().putString("published_catalogue", rows.toString())
+                        .putBoolean("catalogue_managed", data.optBoolean("managed"))
+                        .putString("rotation_order", rotation == null ? "ordered" : rotation.optString("order", "ordered"))
+                        .putString("rotation_topic", rotation == null ? "all" : rotation.optString("topic", "all"))
+                        .putLong("catalogue_sync", now).apply();
+            }
+        } catch (java.io.IOException | org.json.JSONException ignored) {
+            // Keep the last successful cache when the endpoint is unavailable.
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
     }
 }

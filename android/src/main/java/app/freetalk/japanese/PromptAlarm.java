@@ -20,11 +20,15 @@ import java.time.ZonedDateTime;
 
 public final class PromptAlarm extends BroadcastReceiver {
     private static final String TICK = "app.freetalk.japanese.TICK";
-    private static final String CHANNEL = "practice";
+    private static final String CHANNEL = "practice_voice";
 
     @Override public void onReceive(Context context, Intent intent) {
         refresh(context, TICK.equals(intent.getAction()));
         schedule(context);
+        if (TICK.equals(intent.getAction())) {
+            PendingResult result = goAsync();
+            CatalogueSync.refresh(context, result::finish);
+        }
     }
 
     private static LocalTime start(PromptStore store) {
@@ -87,7 +91,21 @@ public final class PromptAlarm extends BroadcastReceiver {
         if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) return;
         NotificationManager manager = context.getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(new NotificationChannel(CHANNEL, "Luyện nói tiếng Nhật", NotificationManager.IMPORTANCE_DEFAULT));
+        NotificationChannel channel = manager.getNotificationChannel(CHANNEL);
+        if (channel == null) {
+            NotificationChannel previous = manager.getNotificationChannel("practice");
+            int importance = previous == null ? NotificationManager.IMPORTANCE_DEFAULT : previous.getImportance();
+            channel = new NotificationChannel(CHANNEL, "Luyện nói · Let’s talk", importance);
+            if (previous == null || previous.getSound() != null) {
+                android.net.Uri sound = android.net.Uri.parse("android.resource://" + context.getPackageName() + "/raw/lets_talk");
+                android.media.AudioAttributes attributes = new android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION).build();
+                channel.setSound(sound, attributes);
+            } else {
+                channel.setSound(null, null);
+            }
+            manager.createNotificationChannel(channel);
+        }
         boolean translate = new PromptStore(context).state.getBoolean("translation", true);
         CharSequence detail = prompt.ja();
         if (translate) {
@@ -97,7 +115,7 @@ public final class PromptAlarm extends BroadcastReceiver {
         }
         Notification notification = new Notification.Builder(context, CHANNEL)
                 .setSmallIcon(R.drawable.ic_prompt)
-                .setContentTitle(test ? "FreeTalk · Thông báo thử" : "FreeTalk 日本語")
+                .setContentTitle(test ? "FreeTalk · Thông báo thử" : "Let’s talk · FreeTalk")
                 .setContentText(prompt.ja())
                 .setStyle(new Notification.BigTextStyle().bigText(detail))
                 .setWhen(java.time.Instant.parse(slot).toEpochMilli()).setShowWhen(true)

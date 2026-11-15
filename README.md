@@ -18,4 +18,4 @@ Mở FreeTalk, thêm widget 4 × 2 từ màn hình chính. Vào **Cài đặt �
 
 Mở [bản web](https://freetalk-japanese-preview.vercel.app/) hoặc chạy `npm run dev` và mở http://127.0.0.1:4173/. Trên iPhone, dùng Safari và chọn **Chia sẻ → Thêm vào màn hình chính**. Câu đổi theo lịch khi app đang mở hoặc khi quay lại. Sau khi tải lần đầu, có thể đọc câu ngay cả khi mất mạng.
 
-Bản này dùng 24 câu có sẵn. Android và web chọn câu trên thiết bị theo lịch riêng. Xem [quyết định nền tảng](docs/decisions/ADR-0001-platform-strategy.md) để biết cách hai bản chia sẻ nội dung.
+Bản cài có 100 câu mẫu, gồm 85 câu đời sống và 15 câu công việc. Android và web chọn câu từ kho đã tải theo lịch riêng. Xem [cách quản lý kho câu và theo dõi AWS](docs/content-workflow.md). Xem [quyết định nền tảng](docs/decisions/ADR-0001-platform-strategy.md) để biết cách hai bản chia sẻ nội dung.

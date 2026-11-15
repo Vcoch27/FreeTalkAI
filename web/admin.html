@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="icon" type="image/png" href="./icon-192.png">
   <title>Quản lý câu hỏi · FreeTalk</title>
   <link rel="stylesheet" href="./style.css">
   <link rel="stylesheet" href="./admin.css">
@@ -10,7 +11,7 @@
   <script defer src="./admin.js"></script>
 </head>
 <body>
-  <header><div class="header-inner"><a class="brand" href="./"><span class="mark" lang="ja">話</span> FreeTalk</a><button id="logout" class="quiet" hidden>Đăng xuất</button></div></header>
+  <header><div class="header-inner"><a class="brand" href="./"><img class="mark" src="./icon-192.png" alt="" width="35" height="35"> FreeTalk</a><button id="logout" class="quiet" hidden>Đăng xuất</button></div></header>
   <main>
     <h1>Quản lý câu hỏi</h1>
     <p id="message" role="status"></p>
@@ -20,25 +21,42 @@
       <button class="primary">Mở kho câu</button>
     </form>
     <div id="workspace" hidden>
-      <form id="generation" class="panel">
-        <h2>Sinh câu bằng Gemini</h2>
-        <label for="topic">Chủ đề (tùy chọn)</label>
-        <input id="topic" maxlength="100" placeholder="Ví dụ: giao tiếp nơi làm việc">
-        <button id="generate" class="primary">Sinh 8 câu nháp</button>
-        <p id="usage" class="muted"></p>
+      <section class="panel" aria-labelledby="prompt-title">
+        <h2 id="prompt-title">Tạo câu bằng prompt</h2>
+        <label for="extra-prompt">Yêu cầu thêm (tùy chọn)</label>
+        <textarea id="extra-prompt" rows="2" placeholder="Ví dụ: 10 câu về mua sắm và hỏi đường"></textarea>
+        <button id="copy-prompt" type="button">Sao chép prompt</button>
+        <label for="prompt-preview">Prompt để gửi cho AI</label>
+        <textarea id="prompt-preview" rows="4" readonly></textarea>
+        <form id="import">
+          <label for="import-data">Dán JSON do AI trả về</label>
+          <textarea id="import-data" rows="4" required></textarea>
+          <button class="primary">Nhập vào bản nháp</button>
+        </form>
+      </section>
+      <form id="rotation" class="panel">
+        <h2>Cách phát câu</h2>
+        <label for="rotation-topic">Nhóm câu</label>
+        <select id="rotation-topic"><option value="all">Tất cả</option><option value="life">Đời sống</option><option value="work">Công việc</option></select>
+        <label for="rotation-order">Thứ tự lặp</label>
+        <select id="rotation-order"><option value="ordered">Cũ → mới</option><option value="reverse">Mới → cũ</option><option value="shuffle">Xáo trộn rồi lặp</option></select>
+        <button class="primary">Lưu cách phát</button>
       </form>
-      <div class="list-header"><h2>Kho câu</h2><button id="add">Thêm câu</button></div>
+      <div class="list-header"><h2>Kho câu</h2><div><button id="publish-drafts" hidden>Xuất bản bản nháp</button> <button id="add">Thêm câu</button></div></div>
       <label for="filter">Trạng thái</label>
       <select id="filter"><option value="">Tất cả</option><option value="draft">Bản nháp</option><option value="published">Đã xuất bản</option><option value="hidden">Đã ẩn</option></select>
       <div id="rows"></div>
+      <p class="muted"><a href="https://settings.aws.com/" target="_blank" rel="noopener">AWS Settings · Billing</a> · <a href="https://console.aws.amazon.com/cloudwatch/home?region=ap-southeast-2#metricsV2:" target="_blank" rel="noopener">CloudWatch · Sydney</a></p>
     </div>
   </main>
   <dialog id="editor">
     <form id="question">
       <div class="settings-heading"><h2>Câu hỏi</h2><button class="quiet" id="close" type="button">Đóng</button></div>
       <label for="mode">Dạng bài</label><select id="mode"></select>
+      <label for="topic">Nhóm</label><select id="topic"><option value="life">Đời sống</option><option value="work">Công việc</option></select>
       <label for="ja">Tiếng Nhật</label><textarea id="ja" lang="ja" required minlength="5" maxlength="100" rows="3"></textarea>
       <label for="vi">Bản dịch tiếng Việt</label><textarea id="vi" required minlength="5" maxlength="180" rows="3"></textarea>
+      <label id="position-label" for="position">Vị trí trong kho</label><input id="position" type="number" min="1">
       <label for="status">Trạng thái</label><select id="status"><option value="draft">Bản nháp</option><option value="published">Xuất bản</option><option value="hidden">Ẩn</option></select>
       <p id="editor-message" role="status"></p>
       <button class="primary">Lưu câu</button>

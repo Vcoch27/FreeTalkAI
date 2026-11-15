@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 import java.util.Random;
 
 final class PromptStore {
@@ -20,18 +21,17 @@ final class PromptStore {
     static final String END = "22:00";
     static final int INTERVAL = 120;
 
-    record Prompt(String id, String mode, String ja, String vi) {
+    record Prompt(String id, String mode, String ja, String vi, String topic) {
         JSONObject json() throws JSONException {
-            return new JSONObject().put("id", id).put("mode", mode).put("ja", ja).put("vi", vi);
+            return new JSONObject().put("id", id).put("mode", mode).put("ja", ja).put("vi", vi).put("topic", topic);
         }
 
         static Prompt parse(JSONObject item) throws JSONException {
-            return new Prompt(item.getString("id"), item.getString("mode"), item.getString("ja"), item.getString("vi"));
+            return new Prompt(item.getString("id"), item.getString("mode"), item.getString("ja"), item.getString("vi"), item.optString("topic", "life"));
         }
     }
 
     private static List<Prompt> catalog;
-    private static final Random random = new Random();
     final SharedPreferences state;
     private final List<Prompt> prompts;
 
@@ -73,21 +73,31 @@ final class PromptStore {
 
     synchronized Prompt next(String slot) {
         Prompt current = current();
-        List<String> recent = new ArrayList<>(java.util.Arrays.asList(state.getString("recent", "").split(",")));
-        recent.remove(current.id());
-        recent.add(0, current.id());
-        if (recent.size() > 12) recent.subList(12, recent.size()).clear();
-        List<Prompt> pool = new ArrayList<>();
-        List<Prompt> available = new ArrayList<>(prompts);
+        List<Prompt> remote = new ArrayList<>();
         try {
-            JSONArray remote = new JSONArray(state.getString("published_catalogue", "[]"));
-            for (int i = 0; i < remote.length(); i++) available.add(Prompt.parse(remote.getJSONObject(i)));
-        } catch (JSONException ignored) { /* The bundled questions still work. */ }
+            JSONArray rows = new JSONArray(state.getString("published_catalogue", "[]"));
+            for (int i = 0; i < rows.length(); i++) remote.add(Prompt.parse(rows.getJSONObject(i)));
+        } catch (JSONException ignored) { remote.clear(); }
+        List<Prompt> available = new ArrayList<>();
+        if (!state.getBoolean("catalogue_managed", false) || remote.isEmpty()) available.addAll(prompts);
+        available.addAll(remote);
+        String topic = state.getString("rotation_topic", "all");
+        List<Prompt> pool = new ArrayList<>();
         for (Prompt prompt : available) {
-            if (!recent.contains(prompt.id()) && !prompt.mode().equals(current.mode())) pool.add(prompt);
+            if ("all".equals(topic) || topic.equals(prompt.topic())) pool.add(prompt);
         }
-        Prompt next = pool.get(random.nextInt(pool.size()));
-        SharedPreferences.Editor edit = state.edit().putString("current", next.id()).putString("recent", String.join(",", recent));
+        if (pool.isEmpty()) pool.addAll(available);
+        String order = state.getString("rotation_order", "ordered");
+        if ("reverse".equals(order)) Collections.reverse(pool);
+        if ("shuffle".equals(order)) Collections.shuffle(pool, new Random(41));
+        int previous = -1;
+        for (int i = 0; i < pool.size(); i++) {
+            if (pool.get(i).id().equals(current.id())) previous = i;
+        }
+        // Begin at the first row on a fresh install or when changing to a new group.
+        if (!state.contains("last_slot")) previous = -1;
+        Prompt next = pool.get((previous + 1) % pool.size());
+        SharedPreferences.Editor edit = state.edit().putString("current", next.id());
         try { edit.putString("current_snapshot", next.json().toString()); }
         catch (JSONException error) { throw new IllegalStateException(error); }
         edit.putString("last_slot", slot);

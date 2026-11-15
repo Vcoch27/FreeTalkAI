@@ -3,14 +3,20 @@ const native = globalThis.FreeTalkAndroid;
 const questions = globalThis.QUESTIONS;
 const catalogueKey = "published-catalogue";
 const slotKey = "current-slot";
+const catalogueConfigKey = "published-catalogue-config";
 let published = native ? [] : JSON.parse(localStorage.getItem(catalogueKey) || "[]");
+let catalogueConfig = native ? {} : JSON.parse(localStorage.getItem(catalogueConfigKey) || "{}");
 
 async function refreshCatalogue() {
   if (native || !globalThis.FREETALK_API) return;
   try {
     const response = await fetch(globalThis.FREETALK_API + "/questions", {signal: AbortSignal.timeout(5000)});
     if (!response.ok) return;
-    published = (await response.json()).questions;
+    const data = await response.json();
+    if (!Array.isArray(data.questions)) return;
+    published = data.questions;
+    catalogueConfig = {rotation: data.rotation || {}, managed: data.managed === true};
+    localStorage.setItem(catalogueConfigKey, JSON.stringify(catalogueConfig));
     localStorage.setItem(catalogueKey, JSON.stringify(published));
   } catch {
     // The bundled questions and last successful catalogue remain available offline.
@@ -33,12 +39,21 @@ let prefs = native ? JSON.parse(native.preferences()) : {
 let refreshTimer;
 
 // A fixed shuffle keeps each slot stable across reloads, tabs and offline use.
-const rotation = [...questions];
-let seed = 41;
-for (let i = rotation.length - 1; i > 0; i--) {
-  seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-  const j = seed % (i + 1);
-  [rotation[i], rotation[j]] = [rotation[j], rotation[i]];
+function rotationPool() {
+  const { order = "ordered", topic = "all" } = catalogueConfig.rotation || {};
+  const source = catalogueConfig.managed && published.length ? published : [...questions, ...published];
+  let pool = source.filter(question => topic === "all" || (question.topic || "life") === topic);
+  if (!pool.length) pool = [...source];
+  if (order === "reverse") pool.reverse();
+  if (order === "shuffle") {
+    let seed = 41;
+    for (let i = pool.length - 1; i > 0; i--) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      const j = seed % (i + 1);
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+  }
+  return pool;
 }
 
 function minutes(value) {
@@ -53,8 +68,6 @@ function webAssignment(now) {
   const index = Math.min(Math.floor(elapsed / prefs.interval), count - 1);
   const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (index < 0 ? 1 : 0));
   const slotIndex = index < 0 ? count - 1 : index;
-  const calendarDay = Date.UTC(day.getFullYear(), day.getMonth(), day.getDate()) / 86400000;
-  const number = calendarDay * count + slotIndex;
   const slot = new Date(day);
   slot.setHours(0, start + slotIndex * prefs.interval, 0, 0);
   const next = new Date(slot);
@@ -67,8 +80,11 @@ function webAssignment(now) {
   const key = slot.toISOString();
   let assignment = JSON.parse(localStorage.getItem(slotKey) || "null");
   if (assignment?.slot !== key) {
-    const pool = [...rotation, ...published].filter(question => question.id !== assignment?.question.id);
-    assignment = {slot: key, question: pool[number % pool.length]};
+    const pool = rotationPool();
+    const previous = pool.findIndex(question => question.id === assignment?.question.id);
+    const nextIndex = previous < 0 ? 0 : (previous + 1) % pool.length;
+    assignment = {slot: key, question: pool[nextIndex]};
+
     localStorage.setItem(slotKey, JSON.stringify(assignment));
   }
   return {...assignment, next};
@@ -78,7 +94,7 @@ function render() {
   clearTimeout(refreshTimer);
   const now = new Date();
   const current = native ? JSON.parse(native.currentAssignment()) : webAssignment(now);
-  const linked = questions.find(question => question.id === link.get("question"));
+  const linked = [...published, ...questions].find(question => question.id === link.get("question"));
   const question = linked || current.question || questions[0];
   const linkedSlot = linked ? Date.parse(link.get("slot")) : NaN;
   const slot = new Date(Number.isFinite(linkedSlot) ? linkedSlot : current.slot);

@@ -1,4 +1,4 @@
-const cacheName = "freetalk-shell-v4";
+const cacheName = "freetalk-shell-v5";
 const shell = ["./index.html", "./style.css", "./questions.js", "./app.js", "./backend-config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
 
 self.addEventListener("install", event => {

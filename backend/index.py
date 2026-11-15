@@ -21,7 +21,7 @@ MODEL = "gemini-2.5-flash-lite"
 MODES = ("everyday", "roleplay", "debate", "brainstorm", "what_if",
          "storytelling", "reflection", "creative_problem_solving")
 STATUSES = ("draft", "published", "hidden")
-MAX_ROWS = 150
+MAX_ROWS = 250
 BATCH_SIZE = 8
 db = boto3.client("dynamodb")
 ssm = boto3.client("ssm")
@@ -74,7 +74,7 @@ def catalogue():
 def body(event):
     try:
         raw = event.get("body") or "{}"
-        if len(raw) > 8192:
+        if len(raw) > 140_000:
             raise Problem(413, "Nội dung quá dài.")
         data = json.loads(base64.b64decode(raw, validate=True) if event.get("isBase64Encoded") else raw)
         if not isinstance(data, dict):
@@ -92,7 +92,10 @@ def fingerprint(text):
 def validate(data):
     if not isinstance(data, dict) or data.get("mode") not in MODES:
         raise Problem(422, "Dạng bài không hợp lệ.")
-    fields = {"mode": data["mode"]}
+    topic = data.get("topic", "life")
+    if topic not in ("life", "work"):
+        raise Problem(422, "Nhóm phải là life hoặc work.")
+    fields = {"mode": data["mode"], "topic": topic}
     for name, limit in (("ja", 100), ("vi", 180)):
         value = data.get(name)
         if not isinstance(value, str) or not 5 <= len(value.strip()) <= limit:
@@ -182,6 +185,49 @@ def generate(data, revision, state):
     return reply(201, {"count": len(added), "tokens": tokens})
 
 
+def configure_catalogue(data, revision, state):
+    if data.get("revision") != revision:
+        raise Problem(409, "Dữ liệu vừa thay đổi. Hãy tải lại.")
+    action = data["action"]
+    if action == "rotation":
+        order, topic = data.get("order"), data.get("topic")
+        if order not in ("ordered", "reverse", "shuffle") or topic not in ("all", "life", "work"):
+            raise Problem(422, "Cách phát hoặc nhóm câu không hợp lệ.")
+        state["rotation"] = {"order": order, "topic": topic}
+        write("catalogue", revision, state)
+        return reply(200, state["rotation"])
+    if action == "publish_drafts":
+        drafts = [row for row in state["questions"] if row["status"] == "draft"]
+        for row in drafts:
+            row["status"] = "published"
+        if drafts:
+            write("catalogue", revision, state)
+        return reply(200, {"count": len(drafts)})
+    rows = data.get("questions")
+    status = data.get("status", "draft")
+    if not isinstance(rows, list) or not 1 <= len(rows) <= 100 or status not in ("draft", "published"):
+        raise Problem(422, "Mỗi lô cần từ 1 đến 100 câu.")
+    existing = {fingerprint(row["ja"]) for row in state["questions"]}
+    added = []
+    for row in rows:
+        fields = validate(row)
+        key = fingerprint(fields["ja"])
+        if key not in existing:
+            existing.add(key)
+            added.append(dict(fields, id="ai-" + uuid.uuid4().hex, status=status))
+    if len(state["questions"]) + len(added) > MAX_ROWS:
+        raise Problem(409, "Kho câu vượt giới hạn 250 câu.")
+    if data.get("seed") is True:
+        if status != "published" or len(rows) != 100 or sum(row.get("topic") == "work" for row in rows) != 15:
+            raise Problem(422, "Kho mẫu phải có 85 câu đời sống và 15 câu công việc.")
+        state["seeded"] = True
+    if added or data.get("seed") is True:
+        state["questions"].extend(added)
+        write("catalogue", revision, state)
+    return reply(200, {"count": len(added), "duplicates": len(rows) - len(added)})
+
+
+
 def admin(method, path, event):
     authorization = (event.get("headers") or {}).get("authorization", "")
     prefix, _, token = authorization.partition(" ")
@@ -197,6 +243,8 @@ def admin(method, path, event):
     if method == "POST" and path == "/admin/generate":
         return generate(data, revision, state)
     if method == "PUT" and path == "/admin/question":
+        if data.get("action") in ("import", "rotation", "publish_drafts"):
+            return configure_catalogue(data, revision, state)
         if data.get("revision") != revision:
             raise Problem(409, "Dữ liệu vừa thay đổi. Hãy tải lại.")
         fields = validate(data)
@@ -214,7 +262,13 @@ def admin(method, path, event):
                 raise Problem(409, "Kho câu đã đạt giới hạn.")
             existing = {"id": "ai-" + uuid.uuid4().hex}
             state["questions"].append(existing)
+        position = data.get("position")
+        if position is not None and (type(position) is not int or not 1 <= position <= len(state["questions"])):
+            raise Problem(422, "Vị trí trong kho không hợp lệ.")
         existing.update(fields, status=status)
+        if position is not None:
+            state["questions"].remove(existing)
+            state["questions"].insert(position - 1, existing)
         write("catalogue", revision, state)
         return reply(200, {"id": existing["id"]})
     raise Problem(404, "Không tìm thấy.")
@@ -227,9 +281,9 @@ def handler(event, context):
         if method == "GET" and path == "/questions":
             _, state = catalogue()
             return reply(200, {"questions": [
-                {key: row[key] for key in ("id", "mode", "ja", "vi")}
+                {**{key: row[key] for key in ("id", "mode", "ja", "vi")}, "topic": row.get("topic", "life")}
                 for row in state["questions"] if row["status"] == "published"
-            ]})
+            ], "rotation": state.get("rotation", {}), "managed": state.get("seeded", False)})
         if path.startswith("/admin/"):
             return admin(method, path, event)
         raise Problem(404, "Không tìm thấy.")
