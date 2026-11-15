@@ -1,0 +1,52 @@
+name: Build FreeTalk iOS IPA
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-ipa.yml"
+      - "web/questions.js"
+      - "web/icon-512.png"
+      - "android/src/main/res/raw/lets_talk.wav"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate Xcode project
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          python3 ios/prepare.py
+          cd ios
+          xcodegen generate
+      - name: Build app and WidgetKit extension for iPhone
+        run: |
+          xcodebuild -version
+          xcodebuild -project ios/FreeTalk.xcodeproj -scheme FreeTalk -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath ios/build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build
+      - name: Package and verify unsigned IPA
+        run: |
+          app=ios/build/Build/Products/Release-iphoneos/FreeTalk.app
+          widget="$app/PlugIns/FreeTalkWidget.appex"
+          test -f "$app/FreeTalk"
+          test -f "$widget/FreeTalkWidget"
+          test -f "$app/lets_talk.wav"
+          cmp "$app/questions.json" "$widget/questions.json"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$widget/Info.plist")" = com.apple.widgetkit-extension
+          mkdir -p ios/build/package/Payload ios/build/artifacts
+          ditto "$app" ios/build/package/Payload/FreeTalk.app
+          (cd ios/build/package && zip -qr ../artifacts/FreeTalk-iOS-0.4.0-unsigned.ipa Payload)
+          unzip -tq ios/build/artifacts/FreeTalk-iOS-0.4.0-unsigned.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FreeTalk-iOS-unsigned
+          path: ios/build/artifacts/FreeTalk-iOS-0.4.0-unsigned.ipa
+          if-no-files-found: error
