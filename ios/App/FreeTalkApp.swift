@@ -9,9 +9,12 @@ struct FreeTalkApp: App {
     @UIApplicationDelegateAdaptor(NotificationsDelegate.self) private var delegate
     @Environment(\.scenePhase) private var phase
 
+    @State private var widgetLink: WidgetLinkRequest?
+
     var body: some Scene {
         WindowGroup {
-            FreeTalkWebView(active: phase == .active)
+            FreeTalkWebView(active: phase == .active, widgetLink: widgetLink)
+                .onOpenURL { widgetLink = WidgetLinkRequest(url: $0) }
         }
     }
 }
@@ -28,8 +31,14 @@ final class NotificationsDelegate: NSObject, UIApplicationDelegate, UNUserNotifi
     }
 }
 
+struct WidgetLinkRequest {
+    let url: URL
+    let id = UUID()
+}
+
 struct FreeTalkWebView: UIViewRepresentable {
     let active: Bool
+    let widgetLink: WidgetLinkRequest?
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -38,6 +47,7 @@ struct FreeTalkWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: WKWebView, context: Context) {
+        context.coordinator.openWidgetLink(widgetLink)
         context.coordinator.update(active: active)
     }
 
@@ -45,6 +55,9 @@ struct FreeTalkWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         private weak var web: WKWebView?
         private var active = false
+        private var lastWidgetLink: UUID?
+        private var linkedSlot: String?
+        private var linkedID: String?
         private var syncTask: Task<Void, Never>?
         private var reminderTask: Task<Void, Never>?
         private let defaults = UserDefaults.standard
@@ -77,7 +90,11 @@ struct FreeTalkWebView: UIViewRepresentable {
                 window.FreeTalkIOS = {
                   preferences: () => JSON.stringify(window.ftPreferences),
                   discussionSchedule: () => window.ftFeed,
-                  linkedAssignment: () => "null",
+                  linkedAssignment: () => window.ftLinkedAssignment || "null",
+                  dismissLinkedAssignment: () => {
+                    window.ftLinkedAssignment = null;
+                    window.webkit.messageHandlers.freetalk.postMessage({action:"dismissLink"});
+                  },
                   savePreferences: raw => {
                     window.ftPreferences = JSON.parse(raw);
                     window.webkit.messageHandlers.freetalk.postMessage({action:"save", values:window.ftPreferences});
@@ -105,10 +122,34 @@ struct FreeTalkWebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { updateWeb() }
 
+        func openWidgetLink(_ request: WidgetLinkRequest?) {
+            guard let request, request.id != lastWidgetLink,
+                  request.url.scheme == "freetalk-jp", request.url.host == "question",
+                  let parts = URLComponents(url: request.url, resolvingAgainstBaseURL: false),
+                  let slot = parts.queryItems?.first(where: { $0.name == "slot" })?.value,
+                  let id = parts.queryItems?.first(where: { $0.name == "id" })?.value,
+                  ISO8601DateFormatter().date(from: slot) != nil, id.count <= 100 else { return }
+            lastWidgetLink = request.id
+            linkedSlot = slot
+            linkedID = id
+            updateWeb()
+        }
+
+        private func linkedAssignmentLiteral() -> String {
+            guard let slot = linkedSlot, let id = linkedID, let data = PromptSchedule.cached,
+                  let raw = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let entries = raw["entries"] as? [[String: Any]],
+                  let entry = entries.first(where: {
+                      $0["slot"] as? String == slot && ($0["question"] as? [String: Any])?["id"] as? String == id
+                  }) else { return "null" }
+            return json(json(entry))
+        }
+
         private func updateWeb() {
             web?.evaluateJavaScript("""
                 window.ftPreferences = \(json(preferences));
                 window.ftFeed = \(feedLiteral());
+                window.ftLinkedAssignment = \(linkedAssignmentLiteral());
                 window.dispatchEvent(new Event('freetalk-update'));
                 """, completionHandler: nil)
         }
@@ -145,6 +186,10 @@ struct FreeTalkWebView: UIViewRepresentable {
                 defaults.set(end, forKey: "reminderEnd")
                 updateWeb()
                 updateReminders(askPermission: true)
+            case "dismissLink":
+                linkedSlot = nil
+                linkedID = nil
+                updateWeb()
             case "test":
                 Task {
                     guard await permitted(ask: true),

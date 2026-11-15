@@ -52,6 +52,7 @@ function render() {
   const history = native ? parsed(native.linkedAssignment(), null) : null;
   const next = entries.find(entry => Date.parse(entry.slot) > now);
   const entry = history || active;
+  byId("back-to-current").hidden = !native?.dismissLinkedAssignment || !history || history.slot === active?.slot;
   if (entry?.slot !== current?.slot || entry?.question.id !== current?.question.id) {
     byId("direction").hidden = true;
   }
@@ -105,6 +106,10 @@ byId("preferences").onsubmit = event => {
 byId("notification-settings").hidden = !native;
 byId("device-settings").hidden = !native;
 byId("test-reminder").onclick = () => native?.testReminder();
+byId("back-to-current").onclick = () => {
+  native?.dismissLinkedAssignment?.();
+  render();
+};
 byId("open-suggestions").onclick = () => hints.showModal();
 byId("close-suggestions").onclick = () => hints.close();
 byId("ideas").onsubmit = event => {

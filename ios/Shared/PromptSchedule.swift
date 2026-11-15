@@ -11,6 +11,14 @@ struct PromptSlot: Codable {
     let question: Prompt
 
     var date: Date { ISO8601DateFormatter().date(from: slot) ?? .distantFuture }
+
+    var link: URL? {
+        var url = URLComponents()
+        url.scheme = "freetalk-jp"
+        url.host = "question"
+        url.queryItems = [URLQueryItem(name: "slot", value: slot), URLQueryItem(name: "id", value: question.id)]
+        return url.url
+    }
 }
 
 struct DiscussionFeed: Decodable {

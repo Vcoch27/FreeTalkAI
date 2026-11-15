@@ -37,14 +37,21 @@ struct QuestionWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             if let slot = entry.slot {
-                Text(slot.question.ja)
-                    .font(family == .accessoryRectangular ? .caption.bold() : .headline)
-                    .lineLimit(family == .accessoryRectangular ? 2 : 4)
-                Text(slot.question.vi)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(family == .accessoryRectangular ? 1 : 2)
-                if family != .accessoryRectangular {
+                if family == .accessoryRectangular {
+                    Text(slot.question.ja)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(4)
+                        .minimumScaleFactor(0.8)
+                        .allowsTightening(true)
+                        .accessibilityLabel(slot.question.ja)
+                } else {
+                    Text(slot.question.ja)
+                        .font(.headline)
+                        .lineLimit(4)
+                    Text(slot.question.vi)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
                     Spacer(minLength: 0)
                     Text(slot.date, format: .dateTime.hour().minute().day().month())
                         .font(.caption2.monospacedDigit())
@@ -56,6 +63,7 @@ struct QuestionWidgetView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .widgetURL(entry.slot?.link)
         .containerBackground(.fill.tertiary, for: .widget)
     }
 }
